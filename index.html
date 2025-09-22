@@ -1,255 +1,348 @@
- <!DOCTYPE html>
+<!doctype html>
+
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Endless Car Driving</title>
-  <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      background: #87CEEB;
-      font-family: Arial, sans-serif;
-    }
-    canvas {
-      display: block;
-      margin: auto;
-      background: #87CEEB; /* Sky */
-    }
-    #shop {
-      position: absolute;
-      top: 60px;
-      right: 20px;
-      background: rgba(0,0,0,0.85);
-      color: white;
-      padding: 10px;
-      border-radius: 10px;
-      display: none;
-      width: 160px;
-    }
-    #shop h3 {
-      margin: 0 0 10px;
-      text-align: center;
-    }
-    #shop button {
-      display: block;
-      margin: 5px auto;
-      padding: 8px;
-      width: 120px;
-      cursor: pointer;
-      border: none;
-      border-radius: 5px;
-      font-weight: bold;
-    }
-    #shopToggle {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      padding: 8px 12px;
-      background: gold;
-      border: none;
-      cursor: pointer;
-      border-radius: 5px;
-      font-weight: bold;
-    }
-    #controls {
-      position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 60px;
-    }
-    #controls button {
-      font-size: 40px;
-      padding: 25px 35px;
-      border: none;
-      border-radius: 50%;
-      background: #222;
-      color: white;
-      cursor: pointer;
-      box-shadow: 0 0 10px rgba(0,0,0,0.6);
-    }
-    #controls button:active {
-      background: #555;
-    }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Endless Car Driving</title>
+<style>
+  :root{--bg:#111;--road:#333;--line:#eee;--accent:#ffcc00}
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Arial;background:var(--bg);color:#fff}
+  #gameWrap{display:grid;grid-template-columns:1fr 300px;gap:12px;padding:12px;box-sizing:border-box;height:100vh}
+  .panel{background:#0f1720;padding:12px;border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,0.6);}
+  #canvas{width:100%;height:100%;background:linear-gradient(#1b2430,#091017);border-radius:12px}
+  #hud{position:absolute;left:18px;top:18px;display:flex;gap:8px;align-items:center}
+  .btn{background:#1f2937;padding:8px 12px;border-radius:8px;cursor:pointer;border:1px solid rgba(255,255,255,0.04)}
+  .small{font-size:13px;color:#cbd5e1}
+  #shop{display:flex;flex-direction:column;gap:8px}
+  .shop-item{display:flex;justify-content:space-between;align-items:center;padding:8px;background:#0b1220;border-radius:8px}
+  label{display:block;font-size:13px}
+  .center{display:flex;align-items:center;gap:8px}
+  #mobile-controls{display:none;margin-top:8px}
+  @media (max-width:900px){#gameWrap{grid-template-columns:1fr;grid-auto-rows:1fr} #shopPanel{order:2} #mobile-controls{display:flex} }
+</style>
 </head>
 <body>
-  <button id="shopToggle">Shop</button>
-  <div id="shop">
-    <h3>Car Shop</h3>
-    <p id="coinCount">Coins: 0</p>
-    <button onclick="buyCar('blue', 5)" style="background:blue;color:white;">Blue Car (5)</button>
-    <button onclick="buyCar('green', 10)" style="background:green;color:white;">Green Car (10)</button>
-    <button onclick="buyCar('purple', 20)" style="background:purple;color:white;">Purple Car (20)</button>
+<div id="gameWrap">
+  <div class="panel" style="position:relative;min-height:400px">
+    <canvas id="canvas"></canvas>
+    <div id="hud">
+      <div class="btn small" id="playBtn">Play</div>
+      <div class="btn small" id="shopBtn">Shop</div>
+      <div class="btn small" id="muteBtn">Mute: Off</div>
+    </div>
+    <div style="position:absolute;right:18px;top:18px;text-align:right">
+      <div class="small">Coins: <span id="coinCount">0</span></div>
+      <div class="small">Best: <span id="bestScore">0</span></div>
+    </div>
+    <div id="mobile-controls" style="position:absolute;left:50%;transform:translateX(-50%);bottom:18px">
+      <div class="btn" id="leftBtn">◀</div>
+      <div class="btn" id="brakeBtn">⏺</div>
+      <div class="btn" id="rightBtn">▶</div>
+    </div>
+  </div>  <div class="panel" id="shopPanel">
+    <h3 style="margin:0 0 8px 0">Shop & Upgrades</h3>
+    <div class="small" style="margin-bottom:8px">Use coins to upgrade your car. Progress saves in browser.</div>
+    <div id="shop"></div>
+    <hr style="border:none;border-top:1px solid rgba(255,255,255,0.04);margin:8px 0">
+    <div class="small">Upgrades:</div>
+    <div id="upgrades" style="display:flex;flex-direction:column;gap:8px;margin-top:8px"></div>
   </div>
-  <canvas id="gameCanvas" width="400" height="600"></canvas>
+</div><script>
+/*
+  Endless Car Driving - Single-file HTML5 game
+  Features implemented:
+  - 3 lanes (left, center, right)
+  - Random segments include normal road and "two-side bridge" (bridge covers lane pairs: left+center or center+right)
+  - Coins collectible
+  - Simple shop to upgrade speed, magnet, and coin multiplier
+  - LocalStorage persistence for coins, upgrades and best score
+  - Keyboard controls and on-screen buttons for mobile
+*/
 
-  <div id="controls">
-    <button id="leftBtn">⬅️</button>
-    <button id="rightBtn">➡️</button>
-  </div>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W, H; function resize(){W = canvas.width = canvas.clientWidth; H = canvas.height = canvas.clientHeight;} window.addEventListener('resize', resize); resize();
 
-  <script>
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
+// Game state
+let running=false, paused=false;
+let lanes=3; // left(0), mid(1), right(2)
+let laneWidth, roadX, roadW;
+let player = {lane:1,x:0,y:0,w:40,h:60,color:'#ff4d4d',speed:0};
+let segments = []; // list of upcoming road segments
+let obstacles = []; // coins and barriers
+let scroll=0; // how far we've moved (for spawning)
+let distance=0, score=0;
+let coins= parseInt(localStorage.getItem('ec_coins')||'0');
+let best = parseInt(localStorage.getItem('ec_best')||'0');
+let upgrades = JSON.parse(localStorage.getItem('ec_upgrades')||'{}');
+upgrades.speed = upgrades.speed||0; // reduces base speed
+upgrades.magnet = upgrades.magnet||0; // radius
+upgrades.mult = upgrades.mult||0; // coin multiplier
 
-    let car = {
-      x: 180,
-      y: 500,
-      width: 50,
-      height: 90,
-      color: "yellow" // Rolls Royce default
-    };
+// Settings
+let baseSpeed = 6;
+let spawnInterval = 120; // px
+let lastSpawn = 0;
+let gravity=0;
 
-    let lanes = [100, 180, 260]; // 3 lanes
-    let roadSpeed = 3;
-    let coins = [];
-    let score = 0;
+// UI refs
+const coinCountEl = document.getElementById('coinCount');
+const bestScoreEl = document.getElementById('bestScore');
+const playBtn = document.getElementById('playBtn');
+const shopBtn = document.getElementById('shopBtn');
+const shopWrap = document.getElementById('shop');
+const upgradesWrap = document.getElementById('upgrades');
+const shopPanel = document.getElementById('shopPanel');
+const muteBtn = document.getElementById('muteBtn');
 
-    let shop = document.getElementById("shop");
-    let shopToggle = document.getElementById("shopToggle");
-    let coinCount = document.getElementById("coinCount");
+let muted=false; muteBtn.addEventListener('click',()=>{muted=!muted; muteBtn.textContent = 'Mute: '+(muted?'On':'Off')});
 
-    shopToggle.addEventListener("click", () => {
-      shop.style.display = shop.style.display === "none" ? "block" : "none";
-    });
+function resetGame(){segments=[];obstacles=[];scroll=0;distance=0;score=0;player.lane=1;player.speed= getPlayerSpeed(); lastSpawn=0;running=true;paused=false;}
 
-    function buyCar(color, price) {
-      if (score >= price) {
-        score -= price;
-        car.color = color;
-        coinCount.innerText = "Coins: " + score;
-        alert("You bought a " + color + " car!");
-      } else {
-        alert("Not enough coins!");
-      }
-    }
+function getPlayerSpeed(){return baseSpeed + upgrades.speed * 1.5;}
 
-    // Keyboard controls
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowLeft" && car.x > lanes[0]) {
-        car.x -= 80;
-      } else if (e.key === "ArrowRight" && car.x < lanes[2]) {
-        car.x += 80;
-      }
-    });
+function spawnSegment(){
+  // Segment types: road (normal), bridgeLeft (covers left+mid), bridgeRight (mid+right)
+  // Randomly choose type; bridges are rarer
+  let r = Math.random();
+  let type='road';
+  if(r<0.12) type = Math.random()<0.5? 'bridgeLeft':'bridgeRight';
+  let length = 800 + Math.random()*800; // px
+  segments.push({type,length,passed:false});
+}
 
-    // Mobile buttons
-    document.getElementById("leftBtn").addEventListener("click", () => {
-      if (car.x > lanes[0]) car.x -= 80;
-    });
-    document.getElementById("rightBtn").addEventListener("click", () => {
-      if (car.x < lanes[2]) car.x += 80;
-    });
+function spawnCoin(x,y){obstacles.push({type:'coin',x,y,w:18,h:18,claimed:false})}
+function spawnBarrier(lane, y){ // barrier blocks an entire lane
+  let cx = laneCenter(lane);
+  obstacles.push({type:'barrier',lane,y,w:laneWidth*0.8,h:30});
+}
 
-    function drawBackground() {
-      // Road
-      ctx.fillStyle = "gray";
-      ctx.fillRect(60, 0, 280, canvas.height);
+function laneCenter(i){return roadX + laneWidth*(i+0.5);} 
 
-      // Grass
-      ctx.fillStyle = "green";
-      ctx.fillRect(0, 0, 60, canvas.height);
-      ctx.fillRect(340, 0, 60, canvas.height);
+// initial segments
+for(let i=0;i<3;i++) spawnSegment();
 
-      // Trees
-      ctx.fillStyle = "darkgreen";
-      for (let i = 0; i < canvas.height; i += 120) {
-        ctx.beginPath();
-        ctx.arc(30, i + 60, 25, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(370, i + 60, 25, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Lane lines
-      ctx.strokeStyle = "white";
-      ctx.lineWidth = 4;
-      for (let i = 1; i < 3; i++) {
-        ctx.beginPath();
-        ctx.setLineDash([20, 20]);
-        ctx.moveTo(60 + i * 80, 0);
-        ctx.lineTo(60 + i * 80, canvas.height);
-        ctx.stroke();
-      }
-      ctx.setLineDash([]);
-    }
-
-    function drawCar() {
-      // Rolls Royce style body
-      ctx.fillStyle = car.color;
-      ctx.fillRect(car.x, car.y, car.width, car.height);
-
-      // Roof
-      ctx.fillStyle = "black";
-      ctx.fillRect(car.x + 10, car.y + 10, car.width - 20, car.height / 3);
-
-      // Wheels
-      ctx.fillStyle = "black";
-      ctx.beginPath();
-      ctx.arc(car.x + 5, car.y + 15, 7, 0, Math.PI * 2);
-      ctx.arc(car.x + car.width - 5, car.y + 15, 7, 0, Math.PI * 2);
-      ctx.arc(car.x + 5, car.y + car.height - 15, 7, 0, Math.PI * 2);
-      ctx.arc(car.x + car.width - 5, car.y + car.height - 15, 7, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    function spawnCoin() {
-      if (Math.random() < 0.02) {
-        let lane = lanes[Math.floor(Math.random() * 3)];
-        coins.push({ x: lane + 20, y: -20, size: 20 });
-      }
-    }
-
-    function drawCoins() {
-      ctx.fillStyle = "gold";
-      coins.forEach(c => {
-        ctx.beginPath();
-        ctx.arc(c.x, c.y, c.size / 2, 0, Math.PI * 2);
-        ctx.fill();
-      });
-    }
-
-    function updateCoins() {
-      coins.forEach(c => c.y += roadSpeed);
-      coins = coins.filter(c => c.y < canvas.height);
-
-      coins.forEach((c, i) => {
-        if (
-          car.x < c.x + c.size &&
-          car.x + car.width > c.x &&
-          car.y < c.y + c.size &&
-          car.y + car.height > c.y
-        ) {
-          score += 1;
-          coins.splice(i, 1);
+function update(dt){
+  if(!running) return;
+  // move forward
+  let sp = getPlayerSpeed();
+  scroll += sp; distance += sp*0.02; score = Math.floor(distance);
+  // spawn segments based on scroll
+  lastSpawn += sp;
+  if(lastSpawn > spawnInterval){
+    spawnSegment(); lastSpawn=0;
+  }
+  // generate obstacles based on active segments
+  if(segments.length){
+    let current = segments[0];
+    // when new segment starts (not passed) populate some coins and barriers
+    if(!current.populated){
+      current.populated=true;
+      let segLen = current.length;
+      // coins: sprinkle
+      let count = 6 + Math.floor(Math.random()*8);
+      for(let i=0;i<count;i++){
+        // place along segment length
+        let t = Math.random();
+        let posY = H + (t*segLen) + scroll*0.0; // off-screen spawn relative to scroll
+        if(current.type==='road'){
+          let lane = Math.floor(Math.random()*lanes);
+          spawnCoin(laneCenter(lane)-9,posY);
+          if(Math.random()<0.18) spawnBarrier(lane,posY+40);
+        } else if(current.type==='bridgeLeft'){
+          // bridge covers lane 0 and 1, so coins may appear on bridge center or right lane
+          let lane = Math.random()<0.6? (Math.floor(Math.random()*2)) : 2;
+          spawnCoin(laneCenter(lane)-9,posY);
+          if(Math.random()<0.12 && lane!==2) spawnBarrier(lane,posY+40);
+        } else if(current.type==='bridgeRight'){
+          let lane = Math.random()<0.6? (1 + Math.floor(Math.random()*2)) : 0;
+          spawnCoin(laneCenter(lane)-9,posY);
+          if(Math.random()<0.12 && lane!==0) spawnBarrier(lane,posY+40);
         }
-      });
+      }
     }
 
-    function drawScore() {
-      ctx.fillStyle = "white";
-      ctx.font = "20px Arial";
-      ctx.fillText("Coins: " + score, 10, 20);
-      coinCount.innerText = "Coins: " + score;
+    // consume length
+    current.length -= sp;
+    if(current.length <= 0){
+      segments.shift();
     }
+  }
 
-    function gameLoop() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // move obstacles up (towards player)
+  for(let obj of obstacles){ obj.y -= sp; }
+  // remove offscreen
+  obstacles = obstacles.filter(o => o.y + 60 > -200 && !o._remove);
 
-      drawBackground();
-      drawCar();
-      spawnCoin();
-      updateCoins();
-      drawCoins();
-      drawScore();
-
-      requestAnimationFrame(gameLoop);
+  // collision detection with coins
+  for(let i=obstacles.length-1;i>=0;i--){
+    let o = obstacles[i];
+    if(o.type==='coin' && !o.claimed){
+      // check distance to player
+      let px = laneCenter(player.lane);
+      let py = H - 120; // player y
+      let dist = Math.hypot(o.x + o.w/2 - px, o.y + o.h/2 - py);
+      let magnetRadius = upgrades.magnet * 20;
+      if(upgrades.magnet && dist < magnetRadius){
+        // attract coin
+        o.x += (px - o.x) * 0.12;
+        o.y += (py - o.y) * 0.12;
+      }
+      if(Math.abs((o.y + o.h/2) - py) < 36 && Math.abs((o.x + o.w/2) - px) < 28){
+        o.claimed=true; obstacles.splice(i,1);
+        let gained = 1 * (1 + upgrades.mult*0.5);
+        coins += Math.floor(gained);
+        score += Math.floor(gained*2);
+        if(!muted) playSound('coin');
+      }
     }
+    if(o.type==='barrier'){
+      // barrier collision if player's lane matches barrier lane and y intersects
+      if(o.lane === player.lane){
+        let py = H - 120;
+        if(o.y < py + 20 && o.y + o.h > py - player.h/2){
+          // collision -> game over
+          if(!muted) playSound('crash');
+          running=false; updatePersistence();
+          if(score>best){ best=score; localStorage.setItem('ec_best',best); }
+          break;
+        }
+      }
+    }
+  }
 
-    gameLoop();
-  </script>
-</body>
-  </html>
+  // update persistence occasionally
+  if(Math.random()<0.01) updatePersistence();
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // draw background
+  let grd = ctx.createLinearGradient(0,0,0,H);
+  grd.addColorStop(0,'#0b1220'); grd.addColorStop(1,'#071018');
+  ctx.fillStyle=grd; ctx.fillRect(0,0,W,H);
+
+  // road area
+  roadW = Math.min(520, W*0.72);
+  roadX = (W - roadW)/2;
+  laneWidth = roadW/lanes;
+  // draw road with segments indication
+  ctx.fillStyle = '#222'; ctx.fillRect(roadX,H*0.05,roadW,H*0.9);
+  // dashed lane lines
+  ctx.strokeStyle = '#444'; ctx.lineWidth=2; ctx.setLineDash([20,18]);
+  for(let i=1;i<lanes;i++){
+    let x = roadX + laneWidth*i;
+    ctx.beginPath(); ctx.moveTo(x,H*0.05); ctx.lineTo(x,H*0.95); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // draw segments overlays (bridge)
+  let drawY = H*0.05 - (scroll % 100);
+  // For visual simplicity, draw a few faint stripes to indicate movement
+  for(let y = drawY; y < H; y += 60){
+    ctx.fillStyle = 'rgba(255,255,255,0.02)';
+    ctx.fillRect(roadX, y, roadW, 20);
+  }
+
+  // draw obstacles
+  for(let o of obstacles){
+    if(o.type==='coin'){
+      ctx.beginPath(); ctx.fillStyle = '#ffd24d'; ctx.ellipse(o.x + o.w/2, o.y + o.h/2, 9,9,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#b07b00'; ctx.font='10px sans-serif'; ctx.fillText('C', o.x+3, o.y+12);
+    } else if(o.type==='barrier'){
+      // barrier rectangle centered in lane
+      let cx = laneCenter(o.lane);
+      ctx.fillStyle = '#8b0000'; ctx.fillRect(cx - o.w/2, o.y, o.w, o.h);
+      ctx.fillStyle='#fff'; ctx.font='12px sans-serif'; ctx.fillText('X', cx-4, o.y+o.h/1.5);
+    }
+  }
+
+  // draw player car
+  let px = laneCenter(player.lane);
+  let py = H - 120;
+  player.x = px - player.w/2; player.y = py - player.h/2;
+  ctx.fillStyle = player.color; ctx.beginPath(); roundRect(ctx, player.x, player.y, player.w, player.h, 8); ctx.fill();
+  ctx.fillStyle='#222'; ctx.fillRect(player.x+6, player.y+6, player.w-12, player.h-26);
+
+  // dashboard
+  ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fillRect(12,H-96,180,72);
+  ctx.fillStyle='#fff'; ctx.font='14px sans-serif'; ctx.fillText('Score: '+score, 24, H-66);
+  ctx.fillText('Distance: '+Math.floor(distance)+'m',24,H-46);
+
+  // paused or game over overlay
+  if(!running){
+    ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff'; ctx.font='28px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('Game Over', W/2, H/2 - 10);
+    ctx.font='16px sans-serif'; ctx.fillText('Press Play to restart', W/2, H/2 + 20);
+    ctx.textAlign='start';
+  }
+}
+
+function loop(ts){ update(16); draw(); requestAnimationFrame(loop); }
+requestAnimationFrame(loop);
+
+// controls
+window.addEventListener('keydown', e=>{
+  if(e.key==='ArrowLeft' || e.key==='a'){ player.lane = Math.max(0, player.lane-1); }
+  if(e.key==='ArrowRight' || e.key==='d'){ player.lane = Math.min(lanes-1, player.lane+1); }
+  if(e.key===' ' || e.key==='Enter'){ if(!running) resetGame(); }
+});
+
+// mobile buttons
+document.getElementById('leftBtn').addEventListener('touchstart', ()=>player.lane = Math.max(0, player.lane-1));
+document.getElementById('rightBtn').addEventListener('touchstart', ()=>player.lane = Math.min(lanes-1, player.lane+1));
+
+playBtn.addEventListener('click', ()=>{ if(!running) resetGame(); else { running=false; updatePersistence(); } });
+shopBtn.addEventListener('click', ()=>{ shopPanel.scrollIntoView({behavior:'smooth'}); });
+
+function updatePersistence(){ localStorage.setItem('ec_coins', coins); localStorage.setItem('ec_upgrades', JSON.stringify(upgrades)); coinCountEl.textContent = coins; bestScoreEl.textContent = best; }
+updatePersistence();
+
+// Simple sounds using WebAudio
+const AudioContext = window.AudioContext || window.webkitAudioContext; let ac=null;
+function ensureAudio(){ if(muted) return; if(!ac) ac = new AudioContext(); }
+function playSound(name){ if(muted) return; try{ ensureAudio(); if(!ac) return; let o = ac.createOscillator(); let g = ac.createGain(); o.connect(g); g.connect(ac.destination); if(name==='coin'){ o.type='sine'; o.frequency.value=880; g.gain.value=0.02; o.start(); setTimeout(()=>o.stop(),80);} if(name==='crash'){ o.type='square'; o.frequency.value=120; g.gain.value=0.05; o.start(); setTimeout(()=>o.stop(),220);} }catch(e){}
+}
+
+// Shop UI
+const shopItems = [
+  {id:'speed1', title:'Speed +1', price:10, apply:()=>{upgrades.speed+=1}},
+  {id:'speed2', title:'Speed +2', price:30, apply:()=>{upgrades.speed+=2}},
+  {id:'mag1', title:'Magnet +1', price:15, apply:()=>{upgrades.magnet+=1}},
+  {id:'mag2', title:'Magnet +2', price:35, apply:()=>{upgrades.magnet+=2}},
+  {id:'mult1', title:'Multiplier +1', price:25, apply:()=>{upgrades.mult+=1}},
+  {id:'paint1', title:'Red Paint', price:5, apply:()=>{player.color='#ff4d4d'}},
+  {id:'paint2', title:'Blue Paint', price:5, apply:()=>{player.color='#4d8cff'}}
+];
+
+function renderShop(){ shopWrap.innerHTML=''; for(let s of shopItems){
+  let div = document.createElement('div'); div.className='shop-item';
+  let left = document.createElement('div'); left.innerHTML = '<strong>'+s.title+'</strong><div class="small">Price: '+s.price+'</div>';
+  let btn = document.createElement('div'); btn.className='btn'; btn.textContent='Buy'; btn.onclick = ()=>{ if(coins >= s.price){ coins -= s.price; s.apply(); updatePersistence(); renderShop(); } else { alert('Not enough coins'); } };
+  div.appendChild(left); div.appendChild(btn); shopWrap.appendChild(div);
+}
+
+  upgradesWrap.innerHTML='';
+  let u1 = document.createElement('div'); u1.className='shop-item'; u1.innerHTML = '<div>Speed level: '+upgrades.speed+'</div><div class="small">(affects base speed)</div>';
+  upgradesWrap.appendChild(u1);
+  let u2 = document.createElement('div'); u2.className='shop-item'; u2.innerHTML = '<div>Magnet level: '+upgrades.magnet+'</div>';
+  upgradesWrap.appendChild(u2);
+  let u3 = document.createElement('div'); u3.className='shop-item'; u3.innerHTML = '<div>Multiplier level: '+upgrades.mult+'</div>';
+  upgradesWrap.appendChild(u3);
+}
+renderShop();
+
+// helper - rounded rect
+function roundRect(ctx, x, y, w, h, r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+// make canvas responsive
+function fitCanvas(){ let wrap = canvas.getBoundingClientRect(); canvas.width = wrap.width; canvas.height = wrap.height; W=canvas.width; H=canvas.height; }
+fitCanvas(); window.addEventListener('resize', fitCanvas);
+
+// initial draw tick
+setInterval(()=>{ coinCountEl.textContent = coins; bestScoreEl.textContent = best; },500);
+
+</script></body>
+</html>
