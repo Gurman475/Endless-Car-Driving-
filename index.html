@@ -13,24 +13,32 @@
     canvas {
       display: block;
       margin: auto;
-      background: #333;
+      background: #87CEEB; /* Sky */
     }
     #shop {
       position: absolute;
-      top: 20px;
+      top: 60px;
       right: 20px;
-      background: rgba(0,0,0,0.8);
+      background: rgba(0,0,0,0.85);
       color: white;
       padding: 10px;
-      border-radius: 8px;
+      border-radius: 10px;
       display: none;
+      width: 150px;
+    }
+    #shop h3 {
+      margin: 0 0 10px;
+      text-align: center;
     }
     #shop button {
       display: block;
-      margin: 5px 0;
+      margin: 5px auto;
       padding: 5px;
-      width: 100px;
+      width: 120px;
       cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      font-weight: bold;
     }
     #shopToggle {
       position: absolute;
@@ -43,6 +51,22 @@
       border-radius: 5px;
       font-weight: bold;
     }
+    #controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    #controls button {
+      font-size: 24px;
+      padding: 15px 25px;
+      margin: 0 20px;
+      border: none;
+      border-radius: 10px;
+      background: #444;
+      color: white;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -50,11 +74,16 @@
   <div id="shop">
     <h3>Car Shop</h3>
     <p id="coinCount">Coins: 0</p>
-    <button onclick="buyCar('blue', 5)">Blue Car (5)</button>
-    <button onclick="buyCar('green', 10)">Green Car (10)</button>
-    <button onclick="buyCar('purple', 20)">Purple Car (20)</button>
+    <button onclick="buyCar('blue', 5)" style="background:blue;color:white;">Blue Car (5)</button>
+    <button onclick="buyCar('green', 10)" style="background:green;color:white;">Green Car (10)</button>
+    <button onclick="buyCar('purple', 20)" style="background:purple;color:white;">Purple Car (20)</button>
   </div>
   <canvas id="gameCanvas" width="400" height="600"></canvas>
+
+  <div id="controls">
+    <button id="leftBtn">⬅️</button>
+    <button id="rightBtn">➡️</button>
+  </div>
 
   <script>
     const canvas = document.getElementById("gameCanvas");
@@ -69,7 +98,7 @@
     };
 
     let lanes = [100, 180, 260]; // 3 lanes
-    let roadSpeed = 3; // 🔽 reduced speed
+    let roadSpeed = 3; // normal speed
     let coins = [];
     let score = 0;
 
@@ -92,6 +121,7 @@
       }
     }
 
+    // Controls (keyboard)
     document.addEventListener("keydown", (e) => {
       if (e.key === "ArrowLeft" && car.x > lanes[0]) {
         car.x -= 80;
@@ -100,16 +130,36 @@
       }
     });
 
-    function drawCar() {
-      ctx.fillStyle = car.color;
-      ctx.fillRect(car.x, car.y, car.width, car.height);
-    }
+    // Controls (touch buttons)
+    document.getElementById("leftBtn").addEventListener("click", () => {
+      if (car.x > lanes[0]) car.x -= 80;
+    });
+    document.getElementById("rightBtn").addEventListener("click", () => {
+      if (car.x < lanes[2]) car.x += 80;
+    });
 
-    function drawRoad() {
+    function drawBackground() {
+      // Road
       ctx.fillStyle = "gray";
       ctx.fillRect(60, 0, 280, canvas.height);
 
-      // lane lines
+      // Grass
+      ctx.fillStyle = "green";
+      ctx.fillRect(0, 0, 60, canvas.height);
+      ctx.fillRect(340, 0, 60, canvas.height);
+
+      // Trees
+      ctx.fillStyle = "darkgreen";
+      for (let i = 0; i < canvas.height; i += 100) {
+        ctx.beginPath();
+        ctx.arc(30, i + 50, 20, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(370, i + 50, 20, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Lane lines
       ctx.strokeStyle = "white";
       ctx.lineWidth = 4;
       for (let i = 1; i < 3; i++) {
@@ -120,6 +170,11 @@
         ctx.stroke();
       }
       ctx.setLineDash([]);
+    }
+
+    function drawCar() {
+      ctx.fillStyle = car.color;
+      ctx.fillRect(car.x, car.y, car.width, car.height);
     }
 
     function spawnCoin() {
@@ -165,7 +220,7 @@
     function gameLoop() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      drawRoad();
+      drawBackground();
       drawCar();
       spawnCoin();
       updateCoins();
@@ -178,4 +233,4 @@
     gameLoop();
   </script>
 </body>
-</html>
+  </html>
